@@ -26,6 +26,11 @@ class AppTheme {
       backgroundColor: sageGreen,
       foregroundColor: offWhite,
     ),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: sageGreen,
+      foregroundColor: offWhite, // Couleur du texte et des icônes
+      elevation: 0,
+    ),
     inputDecorationTheme: InputDecorationTheme(
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       filled: true,
@@ -38,9 +43,9 @@ class AppTheme {
     scaffoldBackgroundColor: const Color(0xFF2A2F2B),
     cardColor: const Color(0xFF3C403A),
     textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: lightBeige, fontSize: 16),
-      bodyMedium: TextStyle(color: lightBeige, fontSize: 14),
-      headlineSmall: TextStyle(color: lightBeige, fontWeight: FontWeight.bold, fontSize: 20),
+      bodyLarge: TextStyle(color: offWhite, fontSize: 16), // Contraste amélioré
+      bodyMedium: TextStyle(color: offWhite, fontSize: 14),
+      headlineSmall: TextStyle(color: offWhite, fontWeight: FontWeight.bold, fontSize: 20),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -53,6 +58,11 @@ class AppTheme {
       backgroundColor: sageGreen,
       foregroundColor: offWhite,
     ),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Color(0xFF1A1E1B), // Fond sombre pour l'AppBar
+      foregroundColor: offWhite, // Texte et icônes clairs
+      elevation: 0,
+    ),
     inputDecorationTheme: InputDecorationTheme(
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       filled: true,
@@ -60,4 +70,3 @@ class AppTheme {
     ),
   );
 }
-

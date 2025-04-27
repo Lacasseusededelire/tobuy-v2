@@ -7,9 +7,20 @@ import '../widgets/total_price_display.dart';
 import '../widgets/theme_toggle_button.dart';
 import 'add_item_screen.dart';
 import 'package:animations/animations.dart';
+import 'package:flutter/services.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({Key? key}) : super(key: key);
+
+  static const _pipChannel = MethodChannel('com.example.tobuy/pip');
+
+  Future<void> _enterPipMode() async {
+    try {
+      await _pipChannel.invokeMethod('enterPipMode');
+    } catch (e) {
+      print('Erreur PiP: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +28,13 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ma Liste d\'Achats'),
-        actions: const [ThemeToggleButton()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_in_picture),
+            onPressed: _enterPipMode, // Bouton pour activer PiP
+          ),
+          const ThemeToggleButton(),
+        ],
       ),
       body: Column(
         children: [
@@ -58,7 +75,7 @@ class HomeScreen extends StatelessWidget {
           Navigator.push(
             context,
             PageRouteBuilder(
-              pageBuilder: (context, animation, _) => const AddItemScreen(),
+              pageBuilder: (context, animation, secondaryAnimation) => const AddItemScreen(),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                 return FadeScaleTransition(animation: animation, child: child);
               },
