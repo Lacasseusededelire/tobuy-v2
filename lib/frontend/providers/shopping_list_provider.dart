@@ -69,7 +69,7 @@ class ShoppingListProvider extends ChangeNotifier {
 
   Future<void> _fetchSuggestions() async {
     try {
-      _suggestions = await _geminiService.getSuggestions(_list);
+      _suggestions = (await _geminiService.getSuggestions(_list)).take(3).toList();
       print('Suggestions IA: ${_suggestions.map((s) => s.name).toList()}');
     } catch (e) {
       print('Erreur lors de l\'appel Gemini: $e');
@@ -84,6 +84,24 @@ class ShoppingListProvider extends ChangeNotifier {
           : [];
     }
     notifyListeners();
+  }
+
+  Future<List<ShoppingItem>> getRecipeIngredients(double budget, String dish) async {
+    try {
+      return await _geminiService.getRecipeIngredients(budget, dish);
+    } catch (e) {
+      print('Erreur lors de la récupération des ingrédients: $e');
+      return [];
+    }
+  }
+
+  Future<List<String>> getAutocomplete(String query) async {
+    try {
+      return await _geminiService.getAutocomplete(query);
+    } catch (e) {
+      print('Erreur lors de l\'autocomplétion: $e');
+      return [];
+    }
   }
 
   Future<void> _updateWidget() async {

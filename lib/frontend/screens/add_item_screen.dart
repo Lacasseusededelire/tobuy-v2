@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:tobuy/frontend/providers/shopping_list_provider.dart';
-import '../../models/shopping_item.dart';
+import 'package:tobuy/models/shopping_item.dart';
 
 class AddItemScreen extends StatefulWidget {
   const AddItemScreen({Key? key}) : super(key: key);
@@ -12,8 +12,9 @@ class AddItemScreen extends StatefulWidget {
 
 class _AddItemScreenState extends State<AddItemScreen> {
   final _nameController = TextEditingController();
-  final _quantityController = TextEditingController(text: '1');
-  final _unitPriceController = TextEditingController(text: '0.0');
+  final _quantityController = TextEditingController();
+  final _unitPriceController = TextEditingController();
+  List<String> _autocompleteSuggestions = [];
 
   @override
   void dispose() {
@@ -23,25 +24,17 @@ class _AddItemScreenState extends State<AddItemScreen> {
     super.dispose();
   }
 
-  void _addItem() {
-    final name = _nameController.text.trim();
-    final quantity = double.tryParse(_quantityController.text) ?? 1.0;
-    final unitPrice = double.tryParse(_unitPriceController.text) ?? 0.0;
-
-    if (name.isNotEmpty) {
-      final item = ShoppingItem(
-        id: DateTime.now().toString(),
-        name: name,
-        quantity: quantity,
-        unitPrice: unitPrice,
-        totalItemPrice: quantity * unitPrice,
-      );
-      Provider.of<ShoppingListProvider>(context, listen: false).addItem(item);
-      Navigator.pop(context);
+  void _fetchAutocomplete(String query) async {
+    if (query.isNotEmpty) {
+      final provider = Provider.of<ShoppingListProvider>(context, listen: false);
+      final suggestions = await provider.getAutocomplete(query);
+      setState(() {
+        _autocompleteSuggestions = suggestions;
+      });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez entrer un nom d\'aliment')),
-      );
+      setState(() {
+        _autocompleteSuggestions = [];
+      });
     }
   }
 
@@ -49,7 +42,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ajouter un article'),
+        title: const Text('Ajouter un aliment'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -57,21 +50,63 @@ class _AddItemScreenState extends State<AddItemScreen> {
           children: [
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Nom de l\'aliment'),
+              decoration: const InputDecoration(
+                labelText: 'Nom de l\'aliment',
+              ),
+              onChanged: _fetchAutocomplete,
             ),
+            if (_autocompleteSuggestions.isNotEmpty)
+              Container(
+                constraints: const BoxConstraints(maxHeight: 100),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _autocompleteSuggestions.length,
+                  itemBuilder: (context, index) {
+                    final suggestion = _autocompleteSuggestions[index];
+                    return ListTile(
+                      title: Text(suggestion),
+                      onTap: () {
+                        _nameController.text = suggestion;
+                        setState(() {
+                          _autocompleteSuggestions = [];
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
             TextField(
               controller: _quantityController,
-              decoration: const InputDecoration(labelText: 'Quantité'),
+              decoration: const InputDecoration(
+                labelText: 'Quantité',
+              ),
               keyboardType: TextInputType.number,
             ),
             TextField(
               controller: _unitPriceController,
-              decoration: const InputDecoration(labelText: 'Prix unitaire'),
+              decoration: const InputDecoration(
+                labelText: 'Prix unitaire (FCFA)',
+              ),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _addItem,
+              onPressed: () {
+                final name = _nameController.text.trim();
+                final quantity = double.tryParse(_quantityController.text) ?? 1.0;
+                final unitPrice = double.tryParse(_unitPriceController.text) ?? 0.0;
+                if (name.isNotEmpty) {
+                  final item = ShoppingItem(
+                    id: DateTime.now().toString(),
+                    name: name,
+                    quantity: quantity,
+                    unitPrice: unitPrice,
+                    totalItemPrice: quantity * unitPrice,
+                  );
+                  Provider.of<ShoppingListProvider>(context, listen: false).addItem(item);
+                  Navigator.pop(context);
+                }
+              },
               child: const Text('Ajouter'),
             ),
           ],
