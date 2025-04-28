@@ -19,6 +19,7 @@ class ShoppingListProvider extends ChangeNotifier {
   List<Suggestion> get suggestions => _suggestions;
 
   void addItem(ShoppingItem item) {
+    print('Ajout de l\'article: ${item.name}'); // Log pour débogage
     _list.items.add(item);
     _list.totalPrice += item.totalItemPrice;
     _list.updatedAt = DateTime.now();
@@ -49,6 +50,7 @@ class ShoppingListProvider extends ChangeNotifier {
   }
 
   void _fetchSuggestions() {
+    print('Vérification des suggestions pour: ${_list.items.map((i) => i.name.toLowerCase())}'); // Log pour débogage
     _suggestions = _list.items.any((i) => i.name.toLowerCase() == 'okok')
         ? [
             Suggestion(
@@ -58,10 +60,12 @@ class ShoppingListProvider extends ChangeNotifier {
             ),
           ]
         : [];
+    notifyListeners();
   }
 
   Future<void> _updateWidget() async {
     final message = _list.items.isEmpty ? 'Aucun article' : '${_list.items.length} article(s)';
+    print('Mise à jour du widget: $message'); // Log pour débogage
     await HomeWidget.saveWidgetData<String>('title', 'ToBuy Widget');
     await HomeWidget.saveWidgetData<String>('message', message);
     await HomeWidget.updateWidget(

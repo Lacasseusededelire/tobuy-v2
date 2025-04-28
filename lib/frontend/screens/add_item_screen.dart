@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:tobuy/models/shopping_item.dart';
 import 'package:tobuy/frontend/providers/shopping_list_provider.dart';
-import 'package:uuid/uuid.dart';
+import '../../models/shopping_item.dart';
 
 class AddItemScreen extends StatefulWidget {
   const AddItemScreen({Key? key}) : super(key: key);
@@ -12,11 +11,9 @@ class AddItemScreen extends StatefulWidget {
 }
 
 class _AddItemScreenState extends State<AddItemScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _quantityController = TextEditingController();
-  final _unitPriceController = TextEditingController();
-  List<String> _autocompleteSuggestions = ['Plantains frits', 'Plantains bouillis'];
+  final _quantityController = TextEditingController(text: '1');
+  final _unitPriceController = TextEditingController(text: '0.0');
 
   @override
   void dispose() {
@@ -26,104 +23,58 @@ class _AddItemScreenState extends State<AddItemScreen> {
     super.dispose();
   }
 
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      final provider = Provider.of<ShoppingListProvider>(context, listen: false);
+  void _addItem() {
+    final name = _nameController.text.trim();
+    final quantity = double.tryParse(_quantityController.text) ?? 1.0;
+    final unitPrice = double.tryParse(_unitPriceController.text) ?? 0.0;
+
+    if (name.isNotEmpty) {
       final item = ShoppingItem(
-        id: const Uuid().v4(),
-        name: _nameController.text.trim(),
-        quantity: double.parse(_quantityController.text),
-        unitPrice: double.parse(_unitPriceController.text),
-        totalItemPrice: double.parse(_quantityController.text) * double.parse(_unitPriceController.text),
+        id: DateTime.now().toString(),
+        name: name,
+        quantity: quantity,
+        unitPrice: unitPrice,
+        totalItemPrice: quantity * unitPrice,
       );
-      provider.addItem(item);
+      Provider.of<ShoppingListProvider>(context, listen: false).addItem(item);
       Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez entrer un nom d\'aliment')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Ajouter un élément')),
+      appBar: AppBar(
+        title: const Text('Ajouter un article'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              Autocomplete<String>(
-                optionsBuilder: (TextEditingValue textEditingValue) {
-                  if (textEditingValue.text.isEmpty) return const Iterable<String>.empty();
-                  // TODO: Appeler GeminiService.getAutocomplete
-                  return _autocompleteSuggestions.where((option) =>
-                      option.toLowerCase().contains(textEditingValue.text.toLowerCase()));
-                },
-                onSelected: (String selection) {
-                  _nameController.text = selection;
-                },
-                fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                  _nameController.text = controller.text; // Synchroniser avec Autocomplete
-                  return TextFormField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    decoration: const InputDecoration(
-                      labelText: 'Nom de l\'aliment',
-                      hintText: 'Ex. Plantains frits',
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Veuillez entrer un nom';
-                      }
-                      return null;
-                    },
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _quantityController,
-                decoration: const InputDecoration(
-                  labelText: 'Quantité',
-                  hintText: 'Ex. 1.0',
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer une quantité';
-                  }
-                  final quantity = double.tryParse(value);
-                  if (quantity == null || quantity <= 0) {
-                    return 'Veuillez entrer une quantité positive';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _unitPriceController,
-                decoration: const InputDecoration(
-                  labelText: 'Prix unitaire (FCFA)',
-                  hintText: 'Ex. 500',
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer un prix';
-                  }
-                  final price = double.tryParse(value);
-                  if (price == null || price <= 0) {
-                    return 'Veuillez entrer un prix positif';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _submitForm,
-                child: const Text('Ajouter'),
-              ),
-            ],
-          ),
+        child: Column(
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Nom de l\'aliment'),
+            ),
+            TextField(
+              controller: _quantityController,
+              decoration: const InputDecoration(labelText: 'Quantité'),
+              keyboardType: TextInputType.number,
+            ),
+            TextField(
+              controller: _unitPriceController,
+              decoration: const InputDecoration(labelText: 'Prix unitaire'),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _addItem,
+              child: const Text('Ajouter'),
+            ),
+          ],
         ),
       ),
     );
