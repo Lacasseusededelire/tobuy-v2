@@ -17,11 +17,26 @@ void main() {
       // Créer une liste de courses pour le test
       final shoppingList = ShoppingList(
         id: '1',
-        name: 'Test List',
+        userId: 'test_user',
         items: [
-          ShoppingItem(id: '1', name: 'Tomate', quantity: 2, unitPrice: 100),
-          ShoppingItem(id: '2', name: 'Oignon', quantity: 1, unitPrice: 50),
+          ShoppingItem(
+            id: '1',
+            name: 'Tomate',
+            quantity: 2,
+            unitPrice: 100,
+            totalItemPrice: 200,
+          ),
+          ShoppingItem(
+            id: '2',
+            name: 'Oignon',
+            quantity: 1,
+            unitPrice: 50,
+            totalItemPrice: 50,
+          ),
         ],
+        totalPrice: 250,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
       // Appeler la méthode et attendre la réponse de l'API
