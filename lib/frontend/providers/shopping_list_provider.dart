@@ -19,7 +19,7 @@ class ShoppingListProvider extends ChangeNotifier {
   List<Suggestion> get suggestions => _suggestions;
 
   void addItem(ShoppingItem item) {
-    print('Ajout de l\'article: ${item.name}'); // Log pour débogage
+    print('Ajout de l\'article: ${item.name}');
     _list.items.add(item);
     _list.totalPrice += item.totalItemPrice;
     _list.updatedAt = DateTime.now();
@@ -28,8 +28,24 @@ class ShoppingListProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateItem(String itemId, ShoppingItem updatedItem) {
+    print('Mise à jour de l\'article: ${updatedItem.name}');
+    final index = _list.items.indexWhere((i) => i.id == itemId);
+    if (index != -1) {
+      final oldItem = _list.items[index];
+      _list.totalPrice -= oldItem.totalItemPrice;
+      _list.items[index] = updatedItem;
+      _list.totalPrice += updatedItem.totalItemPrice;
+      _list.updatedAt = DateTime.now();
+      _fetchSuggestions();
+      _updateWidget();
+      notifyListeners();
+    }
+  }
+
   void removeItem(String itemId) {
     final item = _list.items.firstWhere((i) => i.id == itemId);
+    print('Suppression de l\'article: ${item.name}');
     _list.items.remove(item);
     _list.totalPrice -= item.totalItemPrice;
     _list.updatedAt = DateTime.now();
@@ -50,7 +66,7 @@ class ShoppingListProvider extends ChangeNotifier {
   }
 
   void _fetchSuggestions() {
-    print('Vérification des suggestions pour: ${_list.items.map((i) => i.name.toLowerCase())}'); // Log pour débogage
+    print('Articles actuels: ${_list.items.map((i) => i.name.toLowerCase()).toList()}');
     _suggestions = _list.items.any((i) => i.name.toLowerCase() == 'okok')
         ? [
             Suggestion(
@@ -60,12 +76,13 @@ class ShoppingListProvider extends ChangeNotifier {
             ),
           ]
         : [];
+    print('Suggestions générées: ${_suggestions.map((s) => s.name).toList()}');
     notifyListeners();
   }
 
   Future<void> _updateWidget() async {
     final message = _list.items.isEmpty ? 'Aucun article' : '${_list.items.length} article(s)';
-    print('Mise à jour du widget: $message'); // Log pour débogage
+    print('Mise à jour du widget: $message');
     await HomeWidget.saveWidgetData<String>('title', 'ToBuy Widget');
     await HomeWidget.saveWidgetData<String>('message', message);
     await HomeWidget.updateWidget(

@@ -9,40 +9,77 @@ import 'add_item_screen.dart';
 import 'package:animations/animations.dart';
 import 'package:flutter/services.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
   static const _pipChannel = MethodChannel('com.example.tobuy/pip');
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _enterPipMode() async {
     try {
       await _pipChannel.invokeMethod('enterPipMode');
+      print('Mode PiP déclenché');
     } catch (e) {
       print('Erreur PiP: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur PiP: $e')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final shoppingListProvider = Provider.of<ShoppingListProvider>(context);
+    final items = shoppingListProvider.list.items.where((item) {
+      return item.name.toLowerCase().contains(_searchQuery.toLowerCase());
+    }).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ma Liste d\'Achats'),
         actions: [
           IconButton(
             icon: const Icon(Icons.picture_in_picture),
-            onPressed: _enterPipMode, // Bouton pour activer PiP
+            onPressed: _enterPipMode,
           ),
           const ThemeToggleButton(),
         ],
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                labelText: 'Rechercher un aliment',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+            ),
+          ),
           Expanded(
             child: ListView.builder(
-              itemCount: shoppingListProvider.list.items.length,
+              itemCount: items.length,
               itemBuilder: (context, index) {
-                final item = shoppingListProvider.list.items[index];
+                final item = items[index];
                 return ShoppingItemCard(
                   item: item,
                   onDelete: () => shoppingListProvider.removeItem(item.id),

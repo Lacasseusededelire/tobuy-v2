@@ -9,13 +9,14 @@ import 'frontend/screens/login_screen.dart';
 import 'frontend/screens/register_screen.dart';
 import 'frontend/screens/home_screen.dart';
 import 'frontend/screens/add_item_screen.dart';
+import 'frontend/screens/edit_item_screen.dart';
+import 'models/shopping_item.dart'; // Ajout de l'import
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialiser background_fetch
   BackgroundFetch.configure(
     BackgroundFetchConfig(
-      minimumFetchInterval: 15, // Toutes les 15 minutes
+      minimumFetchInterval: 15,
       stopOnTerminate: false,
       enableHeadless: true,
       requiresBatteryNotLow: false,
@@ -25,7 +26,6 @@ void main() {
       requiredNetworkType: NetworkType.ANY,
     ),
     (String taskId) async {
-      // Tâche en arrière-plan
       final provider = ShoppingListProvider();
       final message = provider.list.items.isEmpty ? 'Aucun article' : '${provider.list.items.length} article(s)';
       await HomeWidget.saveWidgetData<String>('title', 'ToBuy Widget');
@@ -64,6 +64,9 @@ class ToBuyApp extends StatelessWidget {
               '/register': (context) => const RegisterScreen(),
               '/home': (context) => const HomeScreen(),
               '/add-item': (context) => const AddItemScreen(),
+              '/edit-item': (context) => EditItemScreen(
+                    item: ModalRoute.of(context)!.settings.arguments as ShoppingItem,
+                  ),
             },
           );
         },
