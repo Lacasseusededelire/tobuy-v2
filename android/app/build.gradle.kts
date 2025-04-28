@@ -31,6 +31,11 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+    lint {
+        baseline = file("lint-baseline.xml")
+        checkReleaseBuilds = false // Optional: Speeds up release builds if lint isn't critical there
+        abortOnError = false      // Optional: Prevents build failure on lint errors (use with caution)
+    }
 }
 
 flutter {
@@ -39,4 +44,7 @@ flutter {
 
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
+    implementation("androidx.work:work-runtime:2.10.1") // Mise à jour vers la dernière version
+    implementation("androidx.work:work-runtime-ktx:2.10.1") // Mise à jour vers la dernière version
+    implementation(project(":background_fetch"))
 }

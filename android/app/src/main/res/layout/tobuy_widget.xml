@@ -1,21 +1,30 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="8dp"
+    android:background="?android:attr/colorBackground">
     <TextView
+        android:id="@+id/widget_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/widget_title"
-        android:textColor="#C1A783"
-        android:textSize="16sp"
-        android:layout_gravity="center" />
+        android:text="ToBuy Widget"
+        android:textSize="18sp"
+        android:textColor="?android:attr/textColorPrimary" />
+    <TextView
+        android:id="@+id/widget_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Aucun article"
+        android:textSize="14sp"
+        android:textColor="?android:attr/textColorPrimary" />
     <Button
         android:id="@+id/add_item_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/widget_add_button"
-        android:backgroundTint="#A8BDB0"
-        android:textColor="#FAFAF5"
-        android:layout_gravity="center" />
+        android:text="Ajouter un article"
+        android:textColor="?android:attr/textColorPrimary"
+        android:backgroundTint="?android:attr/colorAccent" />
 </LinearLayout>

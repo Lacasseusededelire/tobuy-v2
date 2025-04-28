@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/shopping_item.dart';
-import '../providers/shopping_list_provider.dart';
+import 'package:tobuy/models/shopping_item.dart';
+import 'package:tobuy/frontend/providers/shopping_list_provider.dart';
+import 'package:uuid/uuid.dart';
 
 class AddItemScreen extends StatefulWidget {
   const AddItemScreen({Key? key}) : super(key: key);
@@ -12,14 +13,36 @@ class AddItemScreen extends StatefulWidget {
 
 class _AddItemScreenState extends State<AddItemScreen> {
   final _formKey = GlobalKey<FormState>();
-  String _name = '';
-  double _quantity = 1.0;
-  double _unitPrice = 0.0;
-  List<String> _autocompleteSuggestions = ['Plantains frits', 'Plantains bouillis']; // Simulé
+  final _nameController = TextEditingController();
+  final _quantityController = TextEditingController();
+  final _unitPriceController = TextEditingController();
+  List<String> _autocompleteSuggestions = ['Plantains frits', 'Plantains bouillis'];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _quantityController.dispose();
+    _unitPriceController.dispose();
+    super.dispose();
+  }
+
+  void _submitForm() {
+    if (_formKey.currentState!.validate()) {
+      final provider = Provider.of<ShoppingListProvider>(context, listen: false);
+      final item = ShoppingItem(
+        id: const Uuid().v4(),
+        name: _nameController.text.trim(),
+        quantity: double.parse(_quantityController.text),
+        unitPrice: double.parse(_unitPriceController.text),
+        totalItemPrice: double.parse(_quantityController.text) * double.parse(_unitPriceController.text),
+      );
+      provider.addItem(item);
+      Navigator.pop(context);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final shoppingListProvider = Provider.of<ShoppingListProvider>(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Ajouter un élément')),
       body: Padding(
@@ -36,47 +59,67 @@ class _AddItemScreenState extends State<AddItemScreen> {
                       option.toLowerCase().contains(textEditingValue.text.toLowerCase()));
                 },
                 onSelected: (String selection) {
-                  _name = selection;
+                  _nameController.text = selection;
                 },
                 fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                  _nameController.text = controller.text; // Synchroniser avec Autocomplete
                   return TextFormField(
                     controller: controller,
                     focusNode: focusNode,
-                    decoration: const InputDecoration(labelText: 'Nom de l\'aliment'),
-                    validator: (value) => value!.isEmpty ? 'Champ requis' : null,
-                    onChanged: (value) => _name = value,
+                    decoration: const InputDecoration(
+                      labelText: 'Nom de l\'aliment',
+                      hintText: 'Ex. Plantains frits',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Veuillez entrer un nom';
+                      }
+                      return null;
+                    },
                   );
                 },
               ),
               const SizedBox(height: 16),
               TextFormField(
-                decoration: const InputDecoration(labelText: 'Quantité'),
+                controller: _quantityController,
+                decoration: const InputDecoration(
+                  labelText: 'Quantité',
+                  hintText: 'Ex. 1.0',
+                ),
                 keyboardType: TextInputType.number,
-                validator: (value) => value!.isEmpty ? 'Champ requis' : null,
-                onChanged: (value) => _quantity = double.tryParse(value) ?? 1.0,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Veuillez entrer une quantité';
+                  }
+                  final quantity = double.tryParse(value);
+                  if (quantity == null || quantity <= 0) {
+                    return 'Veuillez entrer une quantité positive';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               TextFormField(
-                decoration: const InputDecoration(labelText: 'Prix unitaire (FCFA)'),
+                controller: _unitPriceController,
+                decoration: const InputDecoration(
+                  labelText: 'Prix unitaire (FCFA)',
+                  hintText: 'Ex. 500',
+                ),
                 keyboardType: TextInputType.number,
-                validator: (value) => value!.isEmpty ? 'Champ requis' : null,
-                onChanged: (value) => _unitPrice = double.tryParse(value) ?? 0.0,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Veuillez entrer un prix';
+                  }
+                  final price = double.tryParse(value);
+                  if (price == null || price <= 0) {
+                    return 'Veuillez entrer un prix positif';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    final item = ShoppingItem(
-                      id: DateTime.now().toString(),
-                      name: _name,
-                      quantity: _quantity,
-                      unitPrice: _unitPrice,
-                      totalItemPrice: _quantity * _unitPrice,
-                    );
-                    shoppingListProvider.addItem(item);
-                    Navigator.pop(context);
-                  }
-                },
+                onPressed: _submitForm,
                 child: const Text('Ajouter'),
               ),
             ],

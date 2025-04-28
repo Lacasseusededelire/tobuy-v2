@@ -28,22 +28,23 @@ class AppTheme {
     ),
     appBarTheme: const AppBarTheme(
       backgroundColor: sageGreen,
-      foregroundColor: offWhite, // Couleur du texte et des icônes
+      foregroundColor: offWhite,
       elevation: 0,
     ),
     inputDecorationTheme: InputDecorationTheme(
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       filled: true,
       fillColor: offWhite,
+      hintStyle: const TextStyle(color: softBrown),
     ),
   );
 
   static ThemeData darkTheme = ThemeData(
     primaryColor: sageGreen,
     scaffoldBackgroundColor: const Color(0xFF2A2F2B),
-    cardColor: const Color(0xFF3C403A),
+    cardColor: const Color(0xFF3C403A), // Gris foncé pour les cartes en mode sombre
     textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: offWhite, fontSize: 16), // Contraste amélioré
+      bodyLarge: TextStyle(color: offWhite, fontSize: 16),
       bodyMedium: TextStyle(color: offWhite, fontSize: 14),
       headlineSmall: TextStyle(color: offWhite, fontWeight: FontWeight.bold, fontSize: 20),
     ),
@@ -59,14 +60,15 @@ class AppTheme {
       foregroundColor: offWhite,
     ),
     appBarTheme: const AppBarTheme(
-      backgroundColor: Color(0xFF1A1E1B), // Fond sombre pour l'AppBar
-      foregroundColor: offWhite, // Texte et icônes clairs
+      backgroundColor: Color(0xFF1A1E1B),
+      foregroundColor: offWhite,
       elevation: 0,
     ),
     inputDecorationTheme: InputDecorationTheme(
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       filled: true,
       fillColor: const Color(0xFF3C403A),
+      hintStyle: const TextStyle(color: offWhite), // Placeholder clair en mode sombre
     ),
   );
 }
