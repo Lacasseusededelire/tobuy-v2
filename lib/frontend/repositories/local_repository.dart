@@ -70,8 +70,11 @@ class LocalRepository {
           name: '',
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
+          isSynced: false,
+          isDeleted: false,
         ));
     final items = _items.where((item) => item.listId == listId && !item.isDeleted).toList();
+    print('Liste $listId chargée avec ${items.length} items');
     return list.copyWith(items: items);
   }
 
@@ -81,7 +84,9 @@ class LocalRepository {
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       isSynced: false,
+      isDeleted: false,
     ));
+    print('Item ajouté: ${item.name} dans liste $listId, total items: ${_items.length}');
   }
 
   Future<void> updateItem(String itemId, {String? name, double? quantity, double? unitPrice, bool? isChecked}) async {
@@ -95,6 +100,7 @@ class LocalRepository {
         updatedAt: DateTime.now(),
         isSynced: false,
       );
+      print('Item mis à jour: $itemId');
     }
   }
 
@@ -106,11 +112,14 @@ class LocalRepository {
         updatedAt: DateTime.now(),
         isSynced: false,
       );
+      print('Item supprimé: $itemId');
     }
   }
 
   Future<List<Invitation>> getInvitations(String userEmail) async {
-    return _invitations.where((inv) => inv.inviteeEmail == userEmail && !inv.status.name.contains('rejected')).toList();
+    final invitations = _invitations.where((inv) => inv.inviteeEmail == userEmail && inv.status != InvitationStatus.rejected).toList();
+    print('Invitations récupérées pour $userEmail: ${invitations.length}');
+    return invitations;
   }
 
   Future<void> createInvitation(String listId, String listName, String inviterId, String inviterEmail, String inviteeEmail) async {
@@ -123,8 +132,10 @@ class LocalRepository {
       inviteeEmail: inviteeEmail,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
+      status: InvitationStatus.pending,
     );
     _invitations.add(invitation);
+    print('Invitation créée pour $inviteeEmail dans liste $listName, total invitations: ${_invitations.length}');
   }
 
   Future<void> updateInvitation(String invitationId, InvitationStatus status) async {
@@ -145,14 +156,15 @@ class LocalRepository {
               updatedAt: DateTime.now(),
               isSynced: false,
             );
+            print('Collaborateur ajouté à la liste: $listId');
           }
         }
       }
+      print('Invitation mise à jour: $invitationId, statut: $status');
     }
   }
 
   Future<void> sync() async {
-    // Simuler la synchro (sera implémenté par Personne 2)
     print('Synchronisation simulée');
   }
 }

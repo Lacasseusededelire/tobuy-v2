@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tobuy/models/shopping_item.dart';
+import 'package:tobuy/frontend/screens/edit_item_screen.dart';
 
 class ShoppingItemCard extends StatelessWidget {
   final ShoppingItem item;
@@ -15,18 +16,54 @@ class ShoppingItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Checkbox(
-        value: item.isChecked,
-        onChanged: (_) => onToggleCheck(),
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      color: Theme.of(context).colorScheme.surface, // Support mode sombre
+      child: ListTile(
+        leading: Checkbox(
+          value: item.isChecked,
+          onChanged: (_) => onToggleCheck(),
+        ),
+        title: Text(
+          item.name,
+          style: TextStyle(
+            decoration: item.isChecked ? TextDecoration.lineThrough : null,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        subtitle: Text(
+          'Quantité: ${item.quantity} | Prix: ${item.totalPrice?.toStringAsFixed(2) ?? '-'} FCFA',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(
+                Icons.edit,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EditItemScreen(item: item),
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: Icon(
+                Icons.delete,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              onPressed: onDelete,
+            ),
+          ],
+        ),
       ),
-      title: Text(
-        item.name,
-        style: TextStyle(decoration: item.isChecked ? TextDecoration.lineThrough : null),
-      ),
-      subtitle: Text('Quantité: ${item.quantity} - Total: ${item.totalItemPrice} FCFA'),
-      trailing: IconButton(icon: const Icon(Icons.delete), onPressed: onDelete),
-      onTap: () => Navigator.pushNamed(context, '/edit-item', arguments: item),
     );
   }
 }

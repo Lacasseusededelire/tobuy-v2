@@ -17,7 +17,7 @@ class SuggestionCard extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ListTile(
           title: Text('Suggestion: ${suggestion.name}', style: Theme.of(context).textTheme.bodyLarge),
-          subtitle: Text('${suggestion.reason} (~${suggestion.estimatedPrice} FCFA)'),
+          subtitle: Text('${suggestion.reason} (~${suggestion.totalPrice} FCFA)'),
           trailing: IconButton(
             icon: const Icon(Icons.add_circle, color: Colors.green),
             onPressed: onAccept,

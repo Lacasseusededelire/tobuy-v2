@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tobuy/frontend/providers/app_providers.dart';
+import 'package:tobuy/frontend/providers/app_providers.dart' as app_providers;
 import 'package:tobuy/frontend/widgets/shopping_item_card.dart';
 import 'package:tobuy/frontend/widgets/total_price_display.dart';
 import 'package:tobuy/frontend/screens/add_item_screen.dart';
@@ -12,9 +11,7 @@ import 'package:tobuy/models/shopping_list.dart';
 import 'package:tobuy/models/shopping_item.dart';
 import 'package:tobuy/models/suggestion.dart';
 import 'package:tobuy/models/uuid_helper.dart';
-import 'package:tobuy/frontend/repositories/local_repository.dart';
 import 'package:tobuy/ia/services/gemini_service.dart';
-import 'package:tobuy/frontend/utils/export_service.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -33,10 +30,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final repo = ref.read(localRepositoryProvider);
+      final repo = ref.read(app_providers.localRepositoryProvider);
       final user = await repo.getUser();
       if (user != null) {
-        ref.read(authProvider.notifier).state = user;
+        ref.read(app_providers.authProvider.notifier).state = user;
       }
     });
   }
@@ -76,14 +73,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               onPressed: () async {
                 final name = nameController.text.trim();
                 if (name.isNotEmpty) {
-                  final repo = ref.read(localRepositoryProvider);
-                  final user = ref.read(authProvider);
-                  if (user != null) {
-                    final list = await repo.createList(user.id, name);
-                    ref.read(selectedListIdProvider.notifier).state = list.id;
-                    ref.invalidate(shoppingListsProvider);
+                  try {
+                    final repo = ref.read(app_providers.localRepositoryProvider);
+                    final user = ref.read(app_providers.authProvider);
+                    if (user != null) {
+                      final list = await repo.createList(user.id, name);
+                      ref.read(app_providers.selectedListIdProvider.notifier).state = list.id;
+                      ref.invalidate(app_providers.shoppingListsProvider);
+                      ref.invalidate(app_providers.selectedListProvider);
+                      print('Liste créée: ${list.name}');
+                    }
+                    Navigator.pop(context);
+                  } catch (e) {
+                    print('Erreur création liste: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Erreur: $e')),
+                    );
                   }
-                  Navigator.pop(context);
                 }
               },
               child: const Text('Créer'),
@@ -105,11 +111,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
             TextButton(
               onPressed: () async {
-                final repo = ref.read(localRepositoryProvider);
-                await repo.deleteList(listId);
-                ref.read(selectedListIdProvider.notifier).state = null;
-                ref.invalidate(shoppingListsProvider);
-                Navigator.pop(context);
+                try {
+                  final repo = ref.read(app_providers.localRepositoryProvider);
+                  await repo.deleteList(listId);
+                  ref.read(app_providers.selectedListIdProvider.notifier).state = null;
+                  ref.invalidate(app_providers.shoppingListsProvider);
+                  ref.invalidate(app_providers.selectedListProvider);
+                  print('Liste supprimée: $listName');
+                  Navigator.pop(context);
+                } catch (e) {
+                  print('Erreur suppression liste: $e');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Erreur: $e')),
+                  );
+                }
               },
               child: const Text('Supprimer'),
             ),
@@ -137,15 +152,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               onPressed: () async {
                 final email = emailController.text.trim();
                 if (email.isNotEmpty) {
-                  final repo = ref.read(localRepositoryProvider);
-                  final user = ref.read(authProvider);
-                  if (user != null) {
-                    await repo.createInvitation(listId, listName, user.id, user.email, email);
+                  try {
+                    final repo = ref.read(app_providers.localRepositoryProvider);
+                    final user = ref.read(app_providers.authProvider);
+                    if (user != null) {
+                      await repo.createInvitation(listId, listName, user.id, user.email, email);
+                      ref.invalidate(app_providers.invitationsProvider);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Invitation envoyée à $email')),
+                      );
+                      print('Invitation envoyée à $email');
+                    }
+                    Navigator.pop(context);
+                  } catch (e) {
+                    print('Erreur invitation: $e');
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Invitation envoyée à $email')),
+                      SnackBar(content: Text('Erreur: $e')),
                     );
                   }
-                  Navigator.pop(context);
                 }
               },
               child: const Text('Inviter'),
@@ -158,7 +182,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _showIngredientsDialog(BuildContext context, WidgetRef ref) {
     final dishController = TextEditingController();
-    final budgetController = TextEditingController(text: '1000');
+    final budgetController = TextEditingController(text: '5000');
 
     showDialog(
       context: context,
@@ -184,17 +208,54 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             TextButton(
               onPressed: () async {
                 final dish = dishController.text.trim();
-                final budget = double.tryParse(budgetController.text.trim()) ?? 1000.0;
-                if (dish.isNotEmpty) {
+                final budget = double.tryParse(budgetController.text.trim()) ?? 5000.0;
+                if (dish.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Veuillez entrer un plat')),
+                  );
+                  return;
+                }
+                try {
                   final gemini = ref.read(geminiServiceProvider);
                   final ingredients = await gemini.getIngredientsForDish(dish, budget);
-                  Navigator.pop(context);
-                  if (ingredients.isNotEmpty) {
-                    _showSuggestionsDialog(context, ref, ingredients, 'Ingrédients pour $dish');
+                  final listId = ref.read(app_providers.selectedListIdProvider);
+                  if (listId != null && ingredients.isNotEmpty) {
+                    final repo = ref.read(app_providers.localRepositoryProvider);
+                    for (var ingredient in ingredients) {
+                      await repo.addItem(
+                        listId,
+                        ShoppingItem(
+                          id: UuidHelper.generate(),
+                          listId: listId,
+                          name: ingredient.name.replaceAll(RegExp(r'[*_]+'), ''), // Nettoyer les étoiles
+                          quantity: ingredient.quantity,
+                          unitPrice: ingredient.unitPrice,
+                          createdAt: DateTime.now(),
+                          updatedAt: DateTime.now(),
+                          isSynced: false,
+                          isDeleted: false,
+                        ),
+                      );
+                    }
+                    ref.invalidate(app_providers.itemsProvider);
+                    ref.invalidate(app_providers.selectedListProvider);
+                    ref.invalidate(app_providers.shoppingListsProvider);
+                    print('Ingrédients ajoutés automatiquement pour $dish: ${ingredients.length} items');
+                    Navigator.pop(context);
+                    _showConfirmationDialog(context, ref, ingredients, dish);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Aucun ingrédient suggéré ou liste non sélectionnée')),
+                    );
                   }
+                } catch (e) {
+                  print('Erreur suggestion ingrédients: $e');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Erreur suggestions: $e')),
+                  );
                 }
               },
-              child: const Text('Suggérer'),
+              child: const Text('Ajouter'),
             ),
           ],
         );
@@ -202,49 +263,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  void _showSuggestionsDialog(BuildContext context, WidgetRef ref, List<Suggestion> suggestions, String title) {
+  void _showConfirmationDialog(BuildContext context, WidgetRef ref, List<Suggestion> ingredients, String dish) {
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(title),
+          title: Text('Ingrédients ajoutés pour $dish'),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView.builder(
               shrinkWrap: true,
-              itemCount: suggestions.length,
+              itemCount: ingredients.length,
               itemBuilder: (context, index) {
-                final suggestion = suggestions[index];
+                final ingredient = ingredients[index];
                 return ListTile(
-                  title: Text(suggestion.name),
-                  subtitle: MarkdownBody(data: suggestion.reason),
-                  trailing: Text('${suggestion.estimatedPrice} FCFA'),
-                  onTap: () async {
-                    final listId = ref.read(selectedListIdProvider);
-                    if (listId != null) {
-                      final repo = ref.read(localRepositoryProvider);
-                      await repo.addItem(
-                        listId,
-                        ShoppingItem(
-                          id: UuidHelper.generate(),
-                          listId: listId,
-                          name: suggestion.name,
-                          quantity: 1.0,
-                          unitPrice: suggestion.estimatedPrice,
-                          createdAt: DateTime.now(),
-                          updatedAt: DateTime.now(),
-                        ),
-                      );
-                      ref.invalidate(itemsProvider);
-                      Navigator.pop(context);
-                    }
-                  },
+                  title: MarkdownBody(data: ingredient.name), // Rendre le nom en Markdown
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      MarkdownBody(data: '**Raison**: ${ingredient.reason}'),
+                      Text('Quantité: ${ingredient.quantity}'),
+                      Text('Prix unitaire: ${ingredient.unitPrice} FCFA'),
+                      Text('Prix total: ${ingredient.totalPrice} FCFA'),
+                    ],
+                  ),
                 );
               },
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer')),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
           ],
         );
       },
@@ -253,235 +301,257 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(authProvider);
-    if (user == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    return Consumer(
+      builder: (context, ref, _) {
+        final user = ref.watch(app_providers.authProvider);
+        if (user == null) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
 
-    final listsAsync = ref.watch(shoppingListsProvider(user.id));
-    final selectedListAsync = ref.watch(selectedListProvider);
-    final itemsAsync = ref.watch(itemsProvider(ref.watch(selectedListIdProvider) ?? ''));
+        final listsAsync = ref.watch(app_providers.shoppingListsProvider(user.id));
+        final selectedListAsync = ref.watch(app_providers.selectedListProvider);
+        final listId = ref.watch(app_providers.selectedListIdProvider) ?? '';
+        final itemsAsync = ref.watch(app_providers.itemsProvider(listId));
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ma Liste d\'Achats'),
-        actions: [
-          IconButton(icon: const Icon(Icons.picture_in_picture), onPressed: _enterPipMode),
-        ],
-      ),
-      drawer: Drawer(
-        child: listsAsync.when(
-          data: (lists) => ListView(
-            children: [
-              DrawerHeader(child: Text('Listes de ${user.email}')),
-              ...lists.map((list) => ListTile(
-                    title: Text(list.name),
-                    selected: ref.watch(selectedListIdProvider) == list.id,
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showDeleteListDialog(context, ref, list.id, list.name);
-                      },
-                    ),
-                    onTap: () {
-                      ref.read(selectedListIdProvider.notifier).state = list.id;
-                      Navigator.pop(context);
-                    },
-                  )),
-              ListTile(
-                title: const Text('Nouvelle liste'),
-                leading: const Icon(Icons.add),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showCreateListDialog(context, ref);
-                },
-              ),
-              ListTile(
-                title: const Text('Invitations'),
-                leading: const Icon(Icons.mail),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const InvitationsScreen()));
-                },
-              ),
+        print('HomeScreen reconstruit, listId: $listId');
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Ma Liste d\'Achats'),
+            actions: [
+              IconButton(icon: const Icon(Icons.picture_in_picture), onPressed: _enterPipMode),
             ],
           ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Erreur: $e')),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TextField(
-                controller: _searchController,
-                decoration: const InputDecoration(
-                  labelText: 'Rechercher un aliment',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.search),
-                ),
-                onChanged: (value) => setState(() => _searchQuery = value),
-              ),
-            ),
-            selectedListAsync.when(
-              data: (list) => list == null
-                  ? const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text('Sélectionnez une liste'),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                '${list.name} (${list.items.length})',
-                                style: Theme.of(context).textTheme.titleLarge,
-                              ),
-                              Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.person_add),
-                                    onPressed: () => _showInviteDialog(context, ref, list.id, list.name),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.share),
-                                    onPressed: () async {
-                                      final exportService = ref.read(exportServiceProvider);
-                                      await exportService.exportToPdf(list);
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+          drawer: Drawer(
+            child: Container(
+              color: Theme.of(context).colorScheme.surface,
+              child: listsAsync.when(
+                data: (lists) => ListView(
+                  children: [
+                    DrawerHeader(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      child: Text(
+                        'Listes de ${user.email}',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onPrimary,
                         ),
-                        if (list.collaboratorIds.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                            child: Text(
-                              'Collaborateurs: ${list.collaboratorIds.length}',
-                              style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    ...lists.map((list) => ListTile(
+                          title: Text(
+                            list.name,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
-                        itemsAsync.when(
-                          data: (items) => FutureBuilder<List<Suggestion>>(
-                            future: ref.read(geminiServiceProvider).getSuggestions(items.map((i) => i.name).toList()),
-                            builder: (context, snapshot) {
-                              final filteredItems = items
-                                  .where((item) => item.name.toLowerCase().contains(_searchQuery.toLowerCase()))
-                                  .toList();
-                              final suggestions = snapshot.data ?? [];
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  ListView.builder(
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    itemCount: filteredItems.length,
-                                    itemBuilder: (context, index) {
-                                      final item = filteredItems[index];
-                                      return ShoppingItemCard(
-                                        item: item,
-                                        onDelete: () async {
-                                          final repo = ref.read(localRepositoryProvider);
-                                          await repo.deleteItem(item.id);
-                                          ref.invalidate(itemsProvider);
-                                        },
-                                        onToggleCheck: () async {
-                                          final repo = ref.read(localRepositoryProvider);
-                                          await repo.updateItem(item.id, isChecked: !item.isChecked);
-                                          ref.invalidate(itemsProvider);
-                                        },
-                                      );
-                                    },
-                                  ),
-                                  if (suggestions.isNotEmpty)
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                                          child: Text(
-                                            'Suggestions IA',
-                                            style: Theme.of(context).textTheme.titleLarge,
-                                          ),
-                                        ),
-                                        ...suggestions.map((suggestion) => ListTile(
-                                              title: Text(suggestion.name),
-                                              subtitle: MarkdownBody(data: suggestion.reason),
-                                              trailing: Text('${suggestion.estimatedPrice} FCFA'),
-                                              onTap: () async {
-                                                final repo = ref.read(localRepositoryProvider);
-                                                await repo.addItem(
-                                                  list.id,
-                                                  ShoppingItem(
-                                                    id: UuidHelper.generate(),
-                                                    listId: list.id,
-                                                    name: suggestion.name,
-                                                    quantity: 1.0,
-                                                    unitPrice: suggestion.estimatedPrice,
-                                                    createdAt: DateTime.now(),
-                                                    updatedAt: DateTime.now(),
-                                                  ),
-                                                );
-                                                ref.invalidate(itemsProvider);
-                                              },
-                                            )),
-                                      ],
-                                    ),
-                                ],
-                              );
+                          selected: ref.watch(app_providers.selectedListIdProvider) == list.id,
+                          selectedTileColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                          trailing: IconButton(
+                            icon: Icon(
+                              Icons.delete,
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showDeleteListDialog(context, ref, list.id, list.name);
                             },
                           ),
-                          loading: () => const Center(child: CircularProgressIndicator()),
-                          error: (e, _) => Center(child: Text('Erreur: $e')),
+                          onTap: () {
+                            ref.read(app_providers.selectedListIdProvider.notifier).state = list.id;
+                            Navigator.pop(context);
+                          },
+                        )),
+                    ListTile(
+                      title: Text(
+                        'Nouvelle liste',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48.0)),
-                            onPressed: () => _showIngredientsDialog(context, ref),
-                            child: const Text('Suggérer des ingrédients pour un plat'),
-                          ),
-                        ),
-                        TotalPriceDisplay(totalPrice: list.totalPrice),
-                      ],
+                      ),
+                      leading: Icon(
+                        Icons.add,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showCreateListDialog(context, ref);
+                      },
                     ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Erreur: $e')),
+                    ListTile(
+                      title: Text(
+                        'Invitations',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      leading: Icon(
+                        Icons.mail,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const InvitationsScreen()));
+                      },
+                    ),
+                  ],
+                ),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(child: Text('Erreur chargement listes: $e')),
+              ),
             ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          if (ref.read(selectedListIdProvider) == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Sélectionnez une liste d\'abord')),
-            );
-            return;
-          }
-          Navigator.push(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => const AddItemScreen(),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                return FadeScaleTransition(animation: animation, child: child);
-              },
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      labelText: 'Rechercher un aliment',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                  ),
+                ),
+                selectedListAsync.when(
+                  data: (list) => list == null
+                      ? const Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Text('Sélectionnez une liste'),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '${list.name} (${list.items.length})',
+                                    style: Theme.of(context).textTheme.titleLarge,
+                                  ),
+                                  Row(
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.person_add),
+                                        onPressed: () => _showInviteDialog(context, ref, list.id, list.name),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.share),
+                                        onPressed: () async {
+                                          final exportService = ref.read(app_providers.exportServiceProvider);
+                                          await exportService.exportToPdf(list);
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (list.collaboratorIds.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                child: Text(
+                                  'Collaborateurs: ${list.collaboratorIds.length}',
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                            itemsAsync.when(
+                              data: (items) {
+                                final filteredItems = items
+                                    .where((item) => item.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+                                    .toList();
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    ListView.builder(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      itemCount: filteredItems.length,
+                                      itemBuilder: (context, index) {
+                                        final item = filteredItems[index];
+                                        return ShoppingItemCard(
+                                          item: item,
+                                          onDelete: () async {
+                                            try {
+                                              final repo = ref.read(app_providers.localRepositoryProvider);
+                                              await repo.deleteItem(item.id);
+                                              ref.invalidate(app_providers.itemsProvider);
+                                              ref.invalidate(app_providers.selectedListProvider);
+                                              ref.invalidate(app_providers.shoppingListsProvider);
+                                              print('Item supprimé: ${item.name}');
+                                            } catch (e) {
+                                              print('Erreur suppression item: $e');
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('Erreur: $e')),
+                                              );
+                                            }
+                                          },
+                                          onToggleCheck: () async {
+                                            try {
+                                              final repo = ref.read(app_providers.localRepositoryProvider);
+                                              await repo.updateItem(item.id, isChecked: !item.isChecked);
+                                              ref.invalidate(app_providers.itemsProvider);
+                                              ref.invalidate(app_providers.selectedListProvider);
+                                              ref.invalidate(app_providers.shoppingListsProvider);
+                                              print('Item coché: ${item.name}, isChecked: ${!item.isChecked}');
+                                            } catch (e) {
+                                              print('Erreur coche item: $e');
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('Erreur: $e')),
+                                              );
+                                            }
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                );
+                              },
+                              loading: () => const Center(child: CircularProgressIndicator()),
+                              error: (e, _) => Center(child: Text('Erreur chargement items: $e')),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48.0)),
+                                onPressed: () => _showIngredientsDialog(context, ref),
+                                child: const Text('Ajouter des ingrédients pour un plat'),
+                              ),
+                            ),
+                            TotalPriceDisplay(totalPrice: list.totalPrice),
+                          ],
+                        ),
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Center(child: Text('Erreur chargement liste: $e')),
+                ),
+              ],
             ),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () {
+              if (ref.read(app_providers.selectedListIdProvider) == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Sélectionnez une liste d\'abord')),
+                );
+                return;
+              }
+              Navigator.pushNamed(context, '/add-item');
+            },
+            child: const Icon(Icons.add),
+          ),
+        );
+      },
     );
   }
 }
