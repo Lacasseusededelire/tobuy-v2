@@ -1,0 +1,1 @@
+const String geminiApiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: 'AIzaSyDKErxw2pXWVaqpfPOXJ-PjiB4L_6FEpz0');

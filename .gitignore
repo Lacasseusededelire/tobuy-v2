@@ -33,10 +33,6 @@ migrate_working_dir/
 .pub/
 /build/
 
-# Fichiers sensibles
-lib/constants/api_keys.dart
-.env
-
 # Symbolication related
 app.*.symbols
 
