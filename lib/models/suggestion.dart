@@ -1,7 +1,7 @@
 class Suggestion {
-  final String name; // Ex. "Sucre"
-  final String reason; // Ex. "Nécessaire pour l'okok"
-  final double estimatedPrice; // Ex. 200.0
+  final String name;
+  final String reason;
+  final double estimatedPrice;
 
   Suggestion({
     required this.name,
@@ -9,7 +9,17 @@ class Suggestion {
     required this.estimatedPrice,
   });
 
-  Map<String, dynamic> toMap() {
+  // Gardé tel quel, semble correct
+  factory Suggestion.fromJson(Map<String, dynamic> json) {
+    return Suggestion(
+      name: json['name'] as String? ?? 'Inconnu',
+      reason: json['reason'] as String? ?? 'Aucune raison',
+      estimatedPrice: (json['estimated_price'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  // Gardé tel quel, semble correct
+  Map<String, dynamic> toJson() {
     return {
       'name': name,
       'reason': reason,
@@ -17,11 +27,27 @@ class Suggestion {
     };
   }
 
+  // Gardé tel quel, semble correct
   factory Suggestion.fromMap(Map<String, dynamic> map) {
+    // Assumant que le prix est stocké comme num dans la map (si jamais stocké)
     return Suggestion(
-      name: map['name'] as String,
-      reason: map['reason'] as String,
-      estimatedPrice: (map['estimated_price'] as num).toDouble(),
+      name: map['name'] as String? ?? 'Inconnu',
+      reason: map['reason'] as String? ?? 'Aucune raison',
+      estimatedPrice: (map['estimated_price'] as num?)?.toDouble() ?? 0.0,
     );
+  }
+
+  // Gardé tel quel, semble correct
+  Map<String, dynamic> toMap() {
+     return {
+      'name': name,
+      'reason': reason,
+      'estimated_price': estimatedPrice,
+    };
+  }
+
+  @override
+  String toString() {
+    return 'Suggestion(name: $name, reason: $reason, estimatedPrice: $estimatedPrice)';
   }
 }

@@ -1,114 +1,137 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:tobuy/frontend/providers/shopping_list_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tobuy/frontend/providers/app_providers.dart';
 import 'package:tobuy/models/shopping_item.dart';
+import 'package:tobuy/models/uuid_helper.dart';
+import 'package:tobuy/frontend/repositories/local_repository.dart';
 
-class AddItemScreen extends StatefulWidget {
+class AddItemScreen extends ConsumerStatefulWidget {
   const AddItemScreen({Key? key}) : super(key: key);
 
   @override
   _AddItemScreenState createState() => _AddItemScreenState();
 }
 
-class _AddItemScreenState extends State<AddItemScreen> {
+class _AddItemScreenState extends ConsumerState<AddItemScreen> {
   final _nameController = TextEditingController();
-  final _quantityController = TextEditingController();
-  final _unitPriceController = TextEditingController();
-  List<String> _autocompleteSuggestions = [];
+  final _quantityController = TextEditingController(text: '1');
+  final _priceController = TextEditingController();
+  List<String> _suggestions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController.addListener(_onNameChanged);
+  }
+
+  void _onNameChanged() async {
+    final query = _nameController.text.trim();
+    if (query.isEmpty) {
+      setState(() => _suggestions = []);
+      return;
+    }
+    final items = await ref.read(itemsProvider(ref.read(selectedListIdProvider) ?? '').future);
+    setState(() {
+      _suggestions = items
+          .where((item) => item.name.toLowerCase().contains(query.toLowerCase()))
+          .map((item) => item.name)
+          .toList();
+    });
+  }
 
   @override
   void dispose() {
+    _nameController.removeListener(_onNameChanged);
     _nameController.dispose();
     _quantityController.dispose();
-    _unitPriceController.dispose();
+    _priceController.dispose();
     super.dispose();
   }
 
-  void _fetchAutocomplete(String query) async {
-    if (query.isNotEmpty) {
-      final provider = Provider.of<ShoppingListProvider>(context, listen: false);
-      final suggestions = await provider.getAutocomplete(query);
-      setState(() {
-        _autocompleteSuggestions = suggestions;
-      });
+  Future<void> _addItem() async {
+    final name = _nameController.text.trim();
+    final quantity = double.tryParse(_quantityController.text) ?? 1.0;
+    final unitPrice = double.tryParse(_priceController.text);
+    final listId = ref.read(selectedListIdProvider);
+
+    if (name.isEmpty || listId == null) return;
+
+    final repo = ref.read(localRepositoryProvider);
+    final items = await ref.read(itemsProvider(listId).future);
+    final existingItem = items.firstWhere(
+      (item) => item.name.toLowerCase() == name.toLowerCase(),
+      orElse: () => ShoppingItem(
+        id: '',
+        listId: listId,
+        name: '',
+        quantity: 0.0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
+
+    if (existingItem.name.isNotEmpty) {
+      await repo.updateItem(
+        existingItem.id,
+        quantity: existingItem.quantity + quantity,
+        unitPrice: unitPrice ?? existingItem.unitPrice,
+      );
     } else {
-      setState(() {
-        _autocompleteSuggestions = [];
-      });
+      await repo.addItem(
+        listId,
+        ShoppingItem(
+          id: UuidHelper.generate(),
+          listId: listId,
+          name: name,
+          quantity: quantity,
+          unitPrice: unitPrice,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
     }
+    ref.invalidate(itemsProvider);
+    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ajouter un aliment'),
-      ),
+      appBar: AppBar(title: const Text('Ajouter un article')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nom de l\'aliment',
-              ),
-              onChanged: _fetchAutocomplete,
+            Autocomplete<String>(
+              optionsBuilder: (TextEditingValue textEditingValue) => _suggestions,
+              onSelected: (String selection) => _nameController.text = selection,
+              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                _nameController.text = controller.text;
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  decoration: const InputDecoration(
+                    labelText: 'Nom de l\'article',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => _addItem(),
+                );
+              },
             ),
-            if (_autocompleteSuggestions.isNotEmpty)
-              Container(
-                constraints: const BoxConstraints(maxHeight: 100),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _autocompleteSuggestions.length,
-                  itemBuilder: (context, index) {
-                    final suggestion = _autocompleteSuggestions[index];
-                    return ListTile(
-                      title: Text(suggestion),
-                      onTap: () {
-                        _nameController.text = suggestion;
-                        setState(() {
-                          _autocompleteSuggestions = [];
-                        });
-                      },
-                    );
-                  },
-                ),
-              ),
+            const SizedBox(height: 16.0),
             TextField(
               controller: _quantityController,
-              decoration: const InputDecoration(
-                labelText: 'Quantité',
-              ),
+              decoration: const InputDecoration(labelText: 'Quantité', border: OutlineInputBorder()),
               keyboardType: TextInputType.number,
             ),
+            const SizedBox(height: 16.0),
             TextField(
-              controller: _unitPriceController,
-              decoration: const InputDecoration(
-                labelText: 'Prix unitaire (FCFA)',
-              ),
+              controller: _priceController,
+              decoration: const InputDecoration(labelText: 'Prix unitaire (FCFA)', border: OutlineInputBorder()),
               keyboardType: TextInputType.number,
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                final name = _nameController.text.trim();
-                final quantity = double.tryParse(_quantityController.text) ?? 1.0;
-                final unitPrice = double.tryParse(_unitPriceController.text) ?? 0.0;
-                if (name.isNotEmpty) {
-                  final item = ShoppingItem(
-                    id: DateTime.now().toString(),
-                    name: name,
-                    quantity: quantity,
-                    unitPrice: unitPrice,
-                    totalItemPrice: quantity * unitPrice,
-                  );
-                  Provider.of<ShoppingListProvider>(context, listen: false).addItem(item);
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('Ajouter'),
-            ),
+            const SizedBox(height: 16.0),
+            ElevatedButton(onPressed: _addItem, child: const Text('Ajouter')),
           ],
         ),
       ),

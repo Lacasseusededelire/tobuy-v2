@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:home_widget/home_widget.dart';
-import 'package:provider/provider.dart';
 import 'package:background_fetch/background_fetch.dart';
-import 'frontend/theme/app_theme.dart';
-import 'frontend/providers/theme_provider.dart';
-import 'frontend/providers/shopping_list_provider.dart';
-import 'frontend/screens/login_screen.dart';
-import 'frontend/screens/register_screen.dart';
-import 'frontend/screens/home_screen.dart';
-import 'frontend/screens/add_item_screen.dart';
-import 'frontend/screens/edit_item_screen.dart';
-import 'models/shopping_item.dart'; // Ajout de l'import
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:tobuy/frontend/screens/home_screen.dart';
+import 'package:tobuy/frontend/screens/add_item_screen.dart';
+import 'package:tobuy/frontend/screens/edit_item_screen.dart';
+import 'package:tobuy/models/shopping_item.dart';
+import 'package:tobuy/frontend/theme/app_theme.dart';
+import 'package:tobuy/frontend/repositories/local_repository.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  BackgroundFetch.configure(
+
+  // Configurer BackgroundFetch
+  await BackgroundFetch.configure(
     BackgroundFetchConfig(
       minimumFetchInterval: 15,
       stopOnTerminate: false,
@@ -26,8 +26,11 @@ void main() {
       requiredNetworkType: NetworkType.ANY,
     ),
     (String taskId) async {
-      final provider = ShoppingListProvider();
-      final message = provider.list.items.isEmpty ? 'Aucun article' : '${provider.list.items.length} article(s)';
+      final repo = LocalRepository();
+      final user = await repo.getUser();
+      final lists = await repo.getLists(user?.id ?? '');
+      final totalItems = lists.fold<int>(0, (sum, list) => sum + list.items.length);
+      final message = totalItems == 0 ? 'Aucun article' : '$totalItems article(s)';
       await HomeWidget.saveWidgetData<String>('title', 'ToBuy Widget');
       await HomeWidget.saveWidgetData<String>('message', message);
       await HomeWidget.updateWidget(name: 'ToBuyWidget', androidName: 'ToBuyWidget');
@@ -38,39 +41,37 @@ void main() {
   }).catchError((e) {
     print('[BackgroundFetch] configure ERROR: $e');
   });
-  runApp(const ToBuyApp());
+
+  runApp(const ProviderScope(child: ToBuyApp()));
 }
 
-class ToBuyApp extends StatelessWidget {
+class ToBuyApp extends ConsumerWidget {
   const ToBuyApp({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => ShoppingListProvider()),
+  Widget build(BuildContext context, WidgetRef ref) {
+    return MaterialApp(
+      title: 'ToBuy',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
       ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
-          return MaterialApp(
-            title: 'ToBuy',
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
-            themeMode: themeProvider.themeMode,
-            initialRoute: '/login',
-            routes: {
-              '/login': (context) => const LoginScreen(),
-              '/register': (context) => const RegisterScreen(),
-              '/home': (context) => const HomeScreen(),
-              '/add-item': (context) => const AddItemScreen(),
-              '/edit-item': (context) => EditItemScreen(
-                    item: ModalRoute.of(context)!.settings.arguments as ShoppingItem,
-                  ),
-            },
-          );
-        },
-      ),
+      supportedLocales: const [
+        Locale('en', ''),
+        Locale('fr', ''),
+      ],
+      initialRoute: '/home',
+      routes: {
+        '/home': (context) => const HomeScreen(),
+        '/add-item': (context) => const AddItemScreen(),
+        '/edit-item': (context) => EditItemScreen(
+              item: ModalRoute.of(context)!.settings.arguments as ShoppingItem,
+            ),
+      },
     );
   }
 }

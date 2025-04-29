@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:tobuy/frontend/providers/shopping_list_provider.dart';
-import '../../models/shopping_item.dart';
-import 'package:animations/animations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tobuy/frontend/providers/app_providers.dart';
+import 'package:tobuy/models/shopping_item.dart';
+import 'package:tobuy/frontend/repositories/local_repository.dart';
 
-class EditItemScreen extends StatefulWidget {
+class EditItemScreen extends ConsumerStatefulWidget {
   final ShoppingItem item;
 
   const EditItemScreen({Key? key, required this.item}) : super(key: key);
@@ -13,79 +13,79 @@ class EditItemScreen extends StatefulWidget {
   _EditItemScreenState createState() => _EditItemScreenState();
 }
 
-class _EditItemScreenState extends State<EditItemScreen> {
+class _EditItemScreenState extends ConsumerState<EditItemScreen> {
   final _nameController = TextEditingController();
   final _quantityController = TextEditingController();
-  final _unitPriceController = TextEditingController();
+  final _priceController = TextEditingController();
+  bool _isChecked = false;
 
   @override
   void initState() {
     super.initState();
     _nameController.text = widget.item.name;
     _quantityController.text = widget.item.quantity.toString();
-    _unitPriceController.text = widget.item.unitPrice.toString();
+    _priceController.text = widget.item.unitPrice?.toString() ?? '';
+    _isChecked = widget.item.isChecked;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _quantityController.dispose();
-    _unitPriceController.dispose();
+    _priceController.dispose();
     super.dispose();
   }
 
-  void _updateItem() {
+  Future<void> _updateItem() async {
     final name = _nameController.text.trim();
     final quantity = double.tryParse(_quantityController.text) ?? 1.0;
-    final unitPrice = double.tryParse(_unitPriceController.text) ?? 0.0;
+    final unitPrice = double.tryParse(_priceController.text);
+    if (name.isEmpty) return;
 
-    if (name.isNotEmpty) {
-      final updatedItem = ShoppingItem(
-        id: widget.item.id,
-        name: name,
-        quantity: quantity,
-        unitPrice: unitPrice,
-        totalItemPrice: quantity * unitPrice,
-      );
-      Provider.of<ShoppingListProvider>(context, listen: false)
-          .updateItem(widget.item.id, updatedItem);
-      Navigator.pop(context);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez entrer un nom d\'aliment')),
-      );
-    }
+    final repo = ref.read(localRepositoryProvider);
+    await repo.updateItem(
+      widget.item.id,
+      name: name,
+      quantity: quantity,
+      unitPrice: unitPrice,
+      isChecked: _isChecked,
+    );
+    ref.invalidate(itemsProvider);
+    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Modifier un article'),
-      ),
+      appBar: AppBar(title: const Text('Modifier l\'article')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Nom de l\'aliment'),
+              decoration: const InputDecoration(labelText: 'Nom de l\'article', border: OutlineInputBorder()),
             ),
+            const SizedBox(height: 16.0),
             TextField(
               controller: _quantityController,
-              decoration: const InputDecoration(labelText: 'Quantité'),
+              decoration: const InputDecoration(labelText: 'Quantité', border: OutlineInputBorder()),
               keyboardType: TextInputType.number,
             ),
+            const SizedBox(height: 16.0),
             TextField(
-              controller: _unitPriceController,
-              decoration: const InputDecoration(labelText: 'Prix unitaire'),
+              controller: _priceController,
+              decoration: const InputDecoration(labelText: 'Prix unitaire (FCFA)', border: OutlineInputBorder()),
               keyboardType: TextInputType.number,
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _updateItem,
-              child: const Text('Mettre à jour'),
+            const SizedBox(height: 16.0),
+            CheckboxListTile(
+              title: const Text('Acheté'),
+              value: _isChecked,
+              onChanged: (value) => setState(() => _isChecked = value ?? false),
             ),
+            const SizedBox(height: 16.0),
+            ElevatedButton(onPressed: _updateItem, child: const Text('Mettre à jour')),
           ],
         ),
       ),
