@@ -2,12 +2,11 @@ import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:tobuy/models/shopping_list.dart';
+import 'package:tobuy/models/shopping_item.dart';
 
 class ExportService {
-  Future<void> exportToPdf(ShoppingList list) async {
-    print('Exportation PDF pour liste: ${list.name}, items: ${list.items.length}');
+  Future<File> exportToPdf(ShoppingList list) async {
     final pdf = pw.Document();
     pdf.addPage(
       pw.Page(
@@ -15,30 +14,44 @@ class ExportService {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text(
-              'Liste: ${list.name}',
+              'Liste d\'achats: ${list.name}',
               style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
             ),
-            pw.SizedBox(height: 16),
-            pw.Text('Articles:', style: pw.TextStyle(fontSize: 18)),
-            if (list.items.isEmpty)
-              pw.Text('Aucun article dans la liste'),
-            ...list.items.map((item) => pw.Text(
-                  '- ${item.name}: ${item.quantity} (Total: ${item.totalPrice?.toStringAsFixed(2) ?? '-'} FCFA)${item.isChecked ? " [Acheté]" : ""}',
-                )),
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: 20),
+            pw.Text('Articles:', style: const pw.TextStyle(fontSize: 18)),
+            pw.SizedBox(height: 10),
+            ...list.items.map(
+              (item) => pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 8),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      item.name,
+                      style: const pw.TextStyle(fontSize: 14),
+                    ),
+                    pw.Text(
+                      'Qté: ${item.quantity} | Prix: ${item.totalPrice} FCFA',
+                      style: const pw.TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            pw.SizedBox(height: 20),
             pw.Text(
-              'Total: ${list.totalPrice.toStringAsFixed(2)} FCFA',
-              style: pw.TextStyle(fontSize: 18),
+              'Total: ${list.totalPrice} FCFA',
+              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
             ),
           ],
         ),
       ),
     );
 
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/list_${list.id}.pdf');
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/${list.name.replaceAll(' ', '_')}.pdf');
     await file.writeAsBytes(await pdf.save());
-    print('PDF généré: ${file.path}');
-    await Share.shareXFiles([XFile(file.path)], text: 'Liste ${list.name}');
+    print('PDF exporté: ${file.path}');
+    return file;
   }
 }

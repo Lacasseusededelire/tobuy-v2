@@ -17,12 +17,13 @@ class ShoppingItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: Theme.of(context).colorScheme.surface,
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      color: Theme.of(context).colorScheme.surface, // Support mode sombre
       child: ListTile(
         leading: Checkbox(
           value: item.isChecked,
           onChanged: (_) => onToggleCheck(),
+          activeColor: Theme.of(context).colorScheme.primary,
         ),
         title: Text(
           item.name,
@@ -32,33 +33,25 @@ class ShoppingItemCard extends StatelessWidget {
           ),
         ),
         subtitle: Text(
-          'Quantité: ${item.quantity} | Prix: ${item.totalPrice?.toStringAsFixed(2) ?? '-'} FCFA',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+          'Quantité: ${item.quantity} | Total: ${item.totalPrice} FCFA',
+          style: TextStyle(color: Theme.of(context).colorScheme.secondary),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: Icon(
-                Icons.edit,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+              icon: const Icon(Icons.edit),
+              color: Theme.of(context).colorScheme.primary,
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => EditItemScreen(item: item),
-                  ),
+                  MaterialPageRoute(builder: (_) => EditItemScreen(item: item)),
                 );
               },
             ),
             IconButton(
-              icon: Icon(
-                Icons.delete,
-                color: Theme.of(context).colorScheme.error,
-              ),
+              icon: const Icon(Icons.delete),
+              color: Theme.of(context).colorScheme.error,
               onPressed: onDelete,
             ),
           ],

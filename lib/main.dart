@@ -8,7 +8,8 @@ import 'package:tobuy/frontend/screens/add_item_screen.dart';
 import 'package:tobuy/frontend/screens/edit_item_screen.dart';
 import 'package:tobuy/models/shopping_item.dart';
 import 'package:tobuy/frontend/theme/app_theme.dart';
-import 'package:tobuy/frontend/repositories/local_repository.dart';
+import 'package:tobuy/data/local_repository.dart';
+import 'package:tobuy/frontend/screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,8 +65,9 @@ class ToBuyApp extends ConsumerWidget {
         Locale('en', ''),
         Locale('fr', ''),
       ],
-      initialRoute: '/home',
+      initialRoute: '/login',
       routes: {
+        '/login': (context) => const LoginScreen(),
         '/home': (context) => const HomeScreen(),
         '/add-item': (context) => const AddItemScreen(),
         '/edit-item': (context) => EditItemScreen(

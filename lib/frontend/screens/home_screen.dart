@@ -27,18 +27,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _searchQuery = '';
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final repo = ref.read(app_providers.localRepositoryProvider);
-      final user = await repo.getUser();
-      if (user != null) {
-        ref.read(app_providers.authProvider.notifier).state = user;
-      }
-    });
-  }
-
-  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -56,7 +44,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  void _showCreateListDialog(BuildContext context, WidgetRef ref) {
+  Future<void> _showCreateListDialog(BuildContext context, WidgetRef ref) async {
     final nameController = TextEditingController();
     showDialog(
       context: context,
@@ -74,14 +62,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 final name = nameController.text.trim();
                 if (name.isNotEmpty) {
                   try {
-                    final repo = ref.read(app_providers.localRepositoryProvider);
+                    final localRepo = ref.read(app_providers.localRepositoryProvider);
+                    final remoteRepo = ref.read(app_providers.remoteRepositoryProvider);
                     final user = ref.read(app_providers.authProvider);
+                    final isOnline = await ref.read(app_providers.connectivityProvider.future);
                     if (user != null) {
-                      final list = await repo.createList(user.id, name);
+                      final list = await localRepo.createList(user.id, name);
+                      if (isOnline) {
+                        try {
+                          await remoteRepo.createList(user.id, name, isOnline: isOnline);
+                          print('Liste créée sur le serveur: ${list.name}');
+                        } catch (e) {
+                          print('Erreur création liste serveur: $e');
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Liste créée localement, synchronisation en attente.')),
+                          );
+                        }
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Mode hors ligne : liste créée localement, synchronisation en attente.')),
+                        );
+                      }
                       ref.read(app_providers.selectedListIdProvider.notifier).state = list.id;
                       ref.invalidate(app_providers.shoppingListsProvider);
                       ref.invalidate(app_providers.selectedListProvider);
-                      print('Liste créée: ${list.name}');
+                      print('Liste créée localement: ${list.name}');
                     }
                     Navigator.pop(context);
                   } catch (e) {
@@ -100,7 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  void _showDeleteListDialog(BuildContext context, WidgetRef ref, String listId, String listName) {
+  Future<void> _showDeleteListDialog(BuildContext context, WidgetRef ref, String listId, String listName) async {
     showDialog(
       context: context,
       builder: (context) {
@@ -112,12 +117,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             TextButton(
               onPressed: () async {
                 try {
-                  final repo = ref.read(app_providers.localRepositoryProvider);
-                  await repo.deleteList(listId);
+                  final localRepo = ref.read(app_providers.localRepositoryProvider);
+                  final remoteRepo = ref.read(app_providers.remoteRepositoryProvider);
+                  final isOnline = await ref.read(app_providers.connectivityProvider.future);
+                  await localRepo.deleteList(listId);
+                  if (isOnline) {
+                    try {
+                      await remoteRepo.deleteList(listId, isOnline: isOnline);
+                      print('Liste supprimée sur le serveur: $listName');
+                    } catch (e) {
+                      print('Erreur suppression liste serveur: $e');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Liste supprimée localement, synchronisation en attente.')),
+                      );
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Mode hors ligne : liste supprimée localement, synchronisation en attente.')),
+                    );
+                  }
                   ref.read(app_providers.selectedListIdProvider.notifier).state = null;
                   ref.invalidate(app_providers.shoppingListsProvider);
                   ref.invalidate(app_providers.selectedListProvider);
-                  print('Liste supprimée: $listName');
+                  print('Liste supprimée localement: $listName');
                   Navigator.pop(context);
                 } catch (e) {
                   print('Erreur suppression liste: $e');
@@ -134,7 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  void _showInviteDialog(BuildContext context, WidgetRef ref, String listId, String listName) {
+  Future<void> _showInviteDialog(BuildContext context, WidgetRef ref, String listId, String listName) async {
     final emailController = TextEditingController();
     showDialog(
       context: context,
@@ -153,15 +175,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 final email = emailController.text.trim();
                 if (email.isNotEmpty) {
                   try {
-                    final repo = ref.read(app_providers.localRepositoryProvider);
+                    final localRepo = ref.read(app_providers.localRepositoryProvider);
+                    final remoteRepo = ref.read(app_providers.remoteRepositoryProvider);
                     final user = ref.read(app_providers.authProvider);
+                    final isOnline = await ref.read(app_providers.connectivityProvider.future);
                     if (user != null) {
-                      await repo.createInvitation(listId, listName, user.id, user.email, email);
+                      await localRepo.createInvitation(listId, listName, user.id, user.email, email);
+                      if (isOnline) {
+                        try {
+                          await remoteRepo.createInvitation(
+                            listId,
+                            listName,
+                            user.id,
+                            user.email,
+                            email,
+                            isOnline: isOnline,
+                          );
+                          print('Invitation envoyée sur le serveur à $email');
+                        } catch (e) {
+                          print('Erreur envoi invitation serveur: $e');
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Invitation créée localement, synchronisation en attente.')),
+                          );
+                        }
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Mode hors ligne : invitation créée localement, synchronisation en attente.')),
+                        );
+                      }
                       ref.invalidate(app_providers.invitationsProvider);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Invitation envoyée à $email')),
                       );
-                      print('Invitation envoyée à $email');
+                      print('Invitation créée localement pour $email');
                     }
                     Navigator.pop(context);
                   } catch (e) {
@@ -180,7 +226,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  void _showIngredientsDialog(BuildContext context, WidgetRef ref) {
+  Future<void> _showIngredientsDialog(BuildContext context, WidgetRef ref) async {
     final dishController = TextEditingController();
     final budgetController = TextEditingController(text: '5000');
 
@@ -219,28 +265,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   final gemini = ref.read(geminiServiceProvider);
                   final ingredients = await gemini.getIngredientsForDish(dish, budget);
                   final listId = ref.read(app_providers.selectedListIdProvider);
+                  final isOnline = await ref.read(app_providers.connectivityProvider.future);
                   if (listId != null && ingredients.isNotEmpty) {
-                    final repo = ref.read(app_providers.localRepositoryProvider);
+                    final localRepo = ref.read(app_providers.localRepositoryProvider);
+                    final remoteRepo = ref.read(app_providers.remoteRepositoryProvider);
                     for (var ingredient in ingredients) {
-                      await repo.addItem(
-                        listId,
-                        ShoppingItem(
-                          id: UuidHelper.generate(),
-                          listId: listId,
-                          name: ingredient.name.replaceAll(RegExp(r'[*_]+'), ''), // Nettoyer les étoiles
-                          quantity: ingredient.quantity,
-                          unitPrice: ingredient.unitPrice,
-                          createdAt: DateTime.now(),
-                          updatedAt: DateTime.now(),
-                          isSynced: false,
-                          isDeleted: false,
-                        ),
+                      final item = ShoppingItem(
+                        id: UuidHelper.generate(),
+                        listId: listId,
+                        name: ingredient.name.replaceAll(RegExp(r'[*_]+'), ''),
+                        quantity: ingredient.quantity,
+                        unitPrice: ingredient.unitPrice,
+                        createdAt: DateTime.now(),
+                        updatedAt: DateTime.now(),
+                        isSynced: false,
+                        isDeleted: false,
                       );
+                      await localRepo.addItem(listId, item);
+                      if (isOnline) {
+                        try {
+                          await remoteRepo.addItem(listId, item, isOnline: isOnline);
+                          print('Ingrédient ajouté sur le serveur: ${item.name}');
+                        } catch (e) {
+                          print('Erreur ajout ingrédient serveur: $e');
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Ingrédients ajoutés localement, synchronisation en attente.')),
+                          );
+                        }
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Mode hors ligne : ingrédients ajoutés localement, synchronisation en attente.')),
+                        );
+                      }
                     }
                     ref.invalidate(app_providers.itemsProvider);
                     ref.invalidate(app_providers.selectedListProvider);
                     ref.invalidate(app_providers.shoppingListsProvider);
-                    print('Ingrédients ajoutés automatiquement pour $dish: ${ingredients.length} items');
+                    print('Ingrédients ajoutés localement pour $dish: ${ingredients.length} items');
                     Navigator.pop(context);
                     _showConfirmationDialog(context, ref, ingredients, dish);
                   } else {
@@ -277,7 +338,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               itemBuilder: (context, index) {
                 final ingredient = ingredients[index];
                 return ListTile(
-                  title: MarkdownBody(data: ingredient.name), // Rendre le nom en Markdown
+                  title: MarkdownBody(data: ingredient.name),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -438,7 +499,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 children: [
                                   Text(
                                     '${list.name} (${list.items.length})',
-                                    style: Theme.of(context).textTheme.titleLarge,
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurface,
+                                        ),
                                   ),
                                   Row(
                                     children: [
@@ -463,7 +526,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                                 child: Text(
                                   'Collaborateurs: ${list.collaboratorIds.length}',
-                                  style: Theme.of(context).textTheme.bodyMedium,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: Theme.of(context).colorScheme.secondary,
+                                      ),
                                 ),
                               ),
                             itemsAsync.when(
@@ -484,12 +549,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           item: item,
                                           onDelete: () async {
                                             try {
-                                              final repo = ref.read(app_providers.localRepositoryProvider);
-                                              await repo.deleteItem(item.id);
+                                              final localRepo = ref.read(app_providers.localRepositoryProvider);
+                                              final remoteRepo = ref.read(app_providers.remoteRepositoryProvider);
+                                              final isOnline = await ref.read(app_providers.connectivityProvider.future);
+                                              await localRepo.deleteItem(item.id);
+                                              if (isOnline) {
+                                                try {
+                                                  await remoteRepo.deleteItem(item.id, isOnline: isOnline);
+                                                  print('Item supprimé sur le serveur: ${item.name}');
+                                                } catch (e) {
+                                                  print('Erreur suppression item serveur: $e');
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    const SnackBar(content: Text('Item supprimé localement, synchronisation en attente.')),
+                                                  );
+                                                }
+                                              } else {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  const SnackBar(content: Text('Mode hors ligne : item supprimé localement, synchronisation en attente.')),
+                                                );
+                                              }
                                               ref.invalidate(app_providers.itemsProvider);
                                               ref.invalidate(app_providers.selectedListProvider);
                                               ref.invalidate(app_providers.shoppingListsProvider);
-                                              print('Item supprimé: ${item.name}');
+                                              print('Item supprimé localement: ${item.name}');
                                             } catch (e) {
                                               print('Erreur suppression item: $e');
                                               ScaffoldMessenger.of(context).showSnackBar(
@@ -499,12 +581,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           },
                                           onToggleCheck: () async {
                                             try {
-                                              final repo = ref.read(app_providers.localRepositoryProvider);
-                                              await repo.updateItem(item.id, isChecked: !item.isChecked);
+                                              final localRepo = ref.read(app_providers.localRepositoryProvider);
+                                              final remoteRepo = ref.read(app_providers.remoteRepositoryProvider);
+                                              final isOnline = await ref.read(app_providers.connectivityProvider.future);
+                                              await localRepo.updateItem(item.id, isChecked: !item.isChecked);
+                                              if (isOnline) {
+                                                try {
+                                                  await remoteRepo.updateItem(
+                                                    item.id,
+                                                    isChecked: !item.isChecked,
+                                                    isOnline: isOnline,
+                                                  );
+                                                  print('Item coché sur le serveur: ${item.name}, isChecked: ${!item.isChecked}');
+                                                } catch (e) {
+                                                  print('Erreur coche item serveur: $e');
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    const SnackBar(content: Text('Item coché localement, synchronisation en attente.')),
+                                                  );
+                                                }
+                                              } else {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  const SnackBar(content: Text('Mode hors ligne : item coché localement, synchronisation en attente.')),
+                                                );
+                                              }
                                               ref.invalidate(app_providers.itemsProvider);
                                               ref.invalidate(app_providers.selectedListProvider);
                                               ref.invalidate(app_providers.shoppingListsProvider);
-                                              print('Item coché: ${item.name}, isChecked: ${!item.isChecked}');
+                                              print('Item coché localement: ${item.name}, isChecked: ${!item.isChecked}');
                                             } catch (e) {
                                               print('Erreur coche item: $e');
                                               ScaffoldMessenger.of(context).showSnackBar(
@@ -524,7 +627,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                               child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48.0)),
+                                style: ElevatedButton.styleFrom(
+                                  minimumSize: const Size(double.infinity, 48.0),
+                                  backgroundColor: Theme.of(context).colorScheme.primary,
+                                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                                ),
                                 onPressed: () => _showIngredientsDialog(context, ref),
                                 child: const Text('Ajouter des ingrédients pour un plat'),
                               ),
@@ -548,6 +655,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               }
               Navigator.pushNamed(context, '/add-item');
             },
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
             child: const Icon(Icons.add),
           ),
         );
