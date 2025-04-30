@@ -22,7 +22,7 @@ class RemoteRepository {
         'password': password,
       });
       final user = User.fromJson(response.data);
-      await localRepo.createUser(user.email, user.password); // Sauvegarde locale
+      await localRepo.createUser(user.email, user.password);
       return user;
     } catch (e) {
       if (!isOnline) {
@@ -41,11 +41,11 @@ class RemoteRepository {
         'password': password,
       });
       final user = User.fromJson(response.data);
-      await localRepo.createUser(user.email, user.password); // Sauvegarde locale
+      await localRepo.createUser(user.email, user.password);
       return user;
     } catch (e) {
       if (!isOnline) {
-        return await localRepo.createUser(email, password); // Création locale si hors ligne
+        return await localRepo.createUser(email, password);
       }
       throw Exception('Échec de la création: $e');
     }
@@ -58,12 +58,11 @@ class RemoteRepository {
         'name': name,
       });
       final list = ShoppingList.fromJson(response.data);
-      await localRepo.createList(userId, name); // Sauvegarde locale
+      await localRepo.createList(userId, name);
       return list;
     } catch (e) {
       if (!isOnline) {
-        final list = await localRepo.createList(userId, name);
-        return list; // Création locale si hors ligne
+        return await localRepo.createList(userId, name);
       }
       throw Exception('Échec création liste: $e');
     }
@@ -72,10 +71,10 @@ class RemoteRepository {
   Future<void> deleteList(String listId, {required bool isOnline}) async {
     try {
       await dio.delete('$baseUrl/lists/$listId');
-      await localRepo.deleteList(listId); // Suppression locale
+      await localRepo.deleteList(listId);
     } catch (e) {
       if (!isOnline) {
-        await localRepo.deleteList(listId); // Suppression locale si hors ligne
+        await localRepo.deleteList(listId);
         return;
       }
       throw Exception('Échec suppression liste: $e');
@@ -86,7 +85,6 @@ class RemoteRepository {
     try {
       final response = await dio.get('$baseUrl/lists', queryParameters: {'userId': userId});
       final lists = (response.data as List).map((json) => ShoppingList.fromJson(json)).toList();
-      // Sauvegarder les listes localement
       for (var list in lists) {
         await localRepo.createList(list.userId, list.name);
         for (var item in list.items) {
@@ -96,7 +94,7 @@ class RemoteRepository {
       return lists;
     } catch (e) {
       if (!isOnline) {
-        return await localRepo.getLists(userId); // Récupération locale si hors ligne
+        return await localRepo.getLists(userId);
       }
       throw Exception('Échec chargement listes: $e');
     }
@@ -105,10 +103,10 @@ class RemoteRepository {
   Future<void> addItem(String listId, ShoppingItem item, {required bool isOnline}) async {
     try {
       await dio.post('$baseUrl/items', data: item.toJson()..['listId'] = listId);
-      await localRepo.addItem(listId, item.copyWith(isSynced: true)); // Sauvegarde locale (synchronisé)
+      await localRepo.addItem(listId, item.copyWith(isSynced: true));
     } catch (e) {
       if (!isOnline) {
-        await localRepo.addItem(listId, item.copyWith(isSynced: false)); // Sauvegarde locale (non synchronisé)
+        await localRepo.addItem(listId, item.copyWith(isSynced: false));
         return;
       }
       throw Exception('Échec ajout item: $e');
@@ -118,10 +116,10 @@ class RemoteRepository {
   Future<void> deleteItem(String itemId, {required bool isOnline}) async {
     try {
       await dio.delete('$baseUrl/items/$itemId');
-      await localRepo.deleteItem(itemId); // Suppression locale
+      await localRepo.deleteItem(itemId);
     } catch (e) {
       if (!isOnline) {
-        await localRepo.deleteItem(itemId); // Suppression locale si hors ligne
+        await localRepo.deleteItem(itemId);
         return;
       }
       throw Exception('Échec suppression item: $e');
@@ -149,7 +147,7 @@ class RemoteRepository {
         quantity: quantity,
         unitPrice: unitPrice,
         isChecked: isChecked,
-      ); // Mise à jour locale
+      );
     } catch (e) {
       if (!isOnline) {
         await localRepo.updateItem(
@@ -158,7 +156,7 @@ class RemoteRepository {
           quantity: quantity,
           unitPrice: unitPrice,
           isChecked: isChecked,
-        ); // Mise à jour locale si hors ligne
+        );
         return;
       }
       throw Exception('Échec mise à jour item: $e');
@@ -169,14 +167,13 @@ class RemoteRepository {
     try {
       final response = await dio.get('$baseUrl/items', queryParameters: {'listId': listId});
       final items = (response.data as List).map((json) => ShoppingItem.fromJson(json)).toList();
-      // Sauvegarder les items localement
       for (var item in items) {
         await localRepo.addItem(listId, item.copyWith(isSynced: true));
       }
       return items;
     } catch (e) {
       if (!isOnline) {
-        return await localRepo.getItems(listId); // Récupération locale si hors ligne
+        return await localRepo.getItems(listId);
       }
       throw Exception('Échec chargement items: $e');
     }
@@ -236,7 +233,6 @@ class RemoteRepository {
     try {
       final response = await dio.get('$baseUrl/invitations', queryParameters: {'receiverEmail': userEmail});
       final invitations = (response.data as List).map((json) => Invitation.fromJson(json)).toList();
-      // Sauvegarder les invitations localement
       for (var invitation in invitations) {
         await localRepo.createInvitation(
           invitation.listId,
@@ -254,7 +250,7 @@ class RemoteRepository {
       return invitations;
     } catch (e) {
       if (!isOnline) {
-        return await localRepo.getInvitations(userEmail); // Récupération locale si hors ligne
+        return await localRepo.getInvitations(userEmail);
       }
       throw Exception('Échec chargement invitations: $e');
     }

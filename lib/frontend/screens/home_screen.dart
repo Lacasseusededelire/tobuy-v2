@@ -13,6 +13,8 @@ import 'package:tobuy/models/suggestion.dart';
 import 'package:tobuy/models/uuid_helper.dart';
 import 'package:tobuy/ia/services/gemini_service.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:share_plus/share_plus.dart'; // Package pour le partage
+import 'package:cross_file/cross_file.dart'; // Pour créer un XFile
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -44,6 +46,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  Future<void> _syncData(WidgetRef ref) async {
+    final user = ref.read(app_providers.authProvider);
+    if (user != null) {
+      try {
+        final syncService = ref.read(app_providers.syncServiceProvider);
+        await syncService.syncData(user.id);
+        ref.invalidate(app_providers.shoppingListsProvider);
+        ref.invalidate(app_providers.selectedListProvider);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Synchronisation réussie')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur synchronisation: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteLocalDatabase(WidgetRef ref) async {
+    try {
+      final localRepo = ref.read(app_providers.localRepositoryProvider);
+      await localRepo.deleteAndRecreateDatabase();
+      ref.read(app_providers.authProvider.notifier).state = null; // Déconnexion
+      ref.invalidate(app_providers.shoppingListsProvider);
+      ref.invalidate(app_providers.selectedListProvider);
+      ref.invalidate(app_providers.invitationsProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Base de données locale supprimée. Veuillez vous reconnecter.')),
+      );
+      Navigator.pushReplacementNamed(context, '/login');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de la suppression: $e')),
+      );
+    }
+  }
+
   Future<void> _showCreateListDialog(BuildContext context, WidgetRef ref) async {
     final nameController = TextEditingController();
     showDialog(
@@ -67,10 +107,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     final user = ref.read(app_providers.authProvider);
                     final isOnline = await ref.read(app_providers.connectivityProvider.future);
                     if (user != null) {
+                      final existingLists = await localRepo.getLists(user.id);
+                      if (existingLists.any((list) => list.name == name && list.userId == user.id)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Une liste avec ce nom existe déjà')),
+                        );
+                        return;
+                      }
+
                       final list = await localRepo.createList(user.id, name);
                       if (isOnline) {
                         try {
-                          await remoteRepo.createList(user.id, name, isOnline: isOnline);
+                          final remoteList = await remoteRepo.createList(user.id, name, isOnline: isOnline);
+                          await localRepo.updateListId(list.id, remoteList.id);
                           print('Liste créée sur le serveur: ${list.name}');
                         } catch (e) {
                           print('Erreur création liste serveur: $e');
@@ -380,6 +429,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           appBar: AppBar(
             title: const Text('Ma Liste d\'Achats'),
             actions: [
+              IconButton(icon: const Icon(Icons.sync), onPressed: () => _syncData(ref)),
+              IconButton(icon: const Icon(Icons.delete_forever), onPressed: () => _deleteLocalDatabase(ref)),
               IconButton(icon: const Icon(Icons.picture_in_picture), onPressed: _enterPipMode),
             ],
           ),
@@ -513,7 +564,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                         icon: const Icon(Icons.share),
                                         onPressed: () async {
                                           final exportService = ref.read(app_providers.exportServiceProvider);
-                                          await exportService.exportToPdf(list);
+                                          try {
+                                            // Exporter le PDF et récupérer le fichier
+                                            final file = await exportService.exportToPdf(list);
+                                            // Convertir le File en XFile pour share_plus
+                                            final xfile = XFile(file.path);
+                                            // Partager le PDF avec shareXFiles
+                                            await Share.shareXFiles(
+                                              [xfile],
+                                              text: 'Voici ma liste de courses : ${list.name}',
+                                              subject: 'Liste de courses - ${list.name}',
+                                            );
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Liste partagée avec succès')),
+                                            );
+                                          } catch (e) {
+                                            print('Erreur lors du partage du PDF: $e');
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Erreur lors du partage: $e')),
+                                            );
+                                          }
                                         },
                                       ),
                                     ],

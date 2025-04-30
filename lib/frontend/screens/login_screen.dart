@@ -20,6 +20,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Note : La suppression de la base de données est commentée pour éviter de vider les données à chaque démarrage.
+    // Si tu veux réinitialiser à nouveau, décommente ce bloc temporairement.
+    /*
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final localRepo = ref.read(app_providers.localRepositoryProvider);
+      await localRepo.deleteAndRecreateDatabase();
+      print('Base de données locale supprimée et recréée au démarrage.');
+    });
+    */
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -36,56 +50,71 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         final isOnline = await ref.read(app_providers.connectivityProvider.future);
         print('État de la connectivité : isOnline = $isOnline');
 
-        // Effectuer la connexion localement
-        final user = await localRepo.login(_emailController.text, _passwordController.text);
-        if (user != null) {
-          // Si l'utilisateur est connecté localement, on met à jour l'état
-          ref.read(app_providers.authProvider.notifier).state = user;
-          print('Connexion locale réussie: ${_emailController.text}');
+        // Vérifier si un utilisateur existe localement
+        var user = await localRepo.login(_emailController.text, _passwordController.text);
 
-          // Si on est en ligne, on tente de se connecter au serveur
+        if (user == null && isOnline) {
+          // Si l'utilisateur n'existe pas localement et qu'on est en ligne, tenter une connexion au serveur
+          print('Utilisateur non trouvé localement, tentative de connexion au serveur...');
+          try {
+            user = await remoteRepo.login(_emailController.text, _passwordController.text, isOnline: true);
+            if (user != null) {
+              // Créer l'utilisateur dans la base de données locale pour les futures connexions hors ligne
+              await localRepo.createUser(_emailController.text, _passwordController.text);
+              print('Utilisateur créé localement après connexion serveur: ${_emailController.text}');
+            }
+          } catch (e) {
+            // Gérer l'erreur 401 spécifiquement
+            if (e is DioException && e.response?.statusCode == 401) {
+              print('Erreur 401: Utilisateur non trouvé sur le serveur');
+              throw Exception('Utilisateur non trouvé sur le serveur');
+            } else {
+              // Autres erreurs réseau
+              print('Erreur détaillée lors de la connexion au serveur: $e');
+              throw Exception('Erreur serveur: $e');
+            }
+          }
+        }
+
+        if (user != null) {
+          // Si l'utilisateur est connecté (localement ou via le serveur), on met à jour l'état
+          ref.read(app_providers.authProvider.notifier).state = user;
+          print('Connexion réussie: ${_emailController.text}');
+
+          // Si on est en ligne, synchroniser les données
           if (isOnline) {
             try {
-              print('Tentative de connexion au serveur...');
-              await remoteRepo.login(_emailController.text, _passwordController.text, isOnline: isOnline);
-              print('Connexion au serveur réussie: ${_emailController.text}');
-              // Synchroniser les données après une connexion réussie
+              print('Tentative de synchronisation des données...');
               await syncService.syncData(user.id);
               print('Synchronisation des données réussie');
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Connexion et synchronisation réussies !')),
               );
             } catch (e) {
-              // Gérer l'erreur 401 spécifiquement
-              if (e is DioException && e.response?.statusCode == 401) {
-                print('Erreur 401: Utilisateur non trouvé sur le serveur');
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Utilisateur non trouvé sur le serveur, connexion locale uniquement.'),
-                  ),
-                );
-              } else {
-                // Autres erreurs réseau
-                print('Erreur détaillée lors de la connexion au serveur: $e');
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Connexion locale réussie, mais erreur serveur: $e. Synchronisation en attente.'),
-                  ),
-                );
-              }
+              print('Erreur lors de la synchronisation: $e');
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Connexion réussie, mais erreur synchronisation: $e. Synchronisation en attente.'),
+                ),
+              );
             }
           } else {
-            // Si hors ligne, on informe l'utilisateur
+            // Si hors ligne, informer l'utilisateur
             print('Mode hors ligne détecté');
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Mode hors ligne : connexion locale réussie, synchronisation en attente.')),
+              const SnackBar(content: Text('Mode hors ligne : connexion réussie, synchronisation en attente.')),
             );
           }
 
-          // Naviguer vers l'écran d'accueil après une connexion locale réussie
+          // Naviguer vers l'écran d'accueil
           Navigator.pushReplacementNamed(context, '/home');
         } else {
-          throw Exception('Identifiants incorrects');
+          // Si l'utilisateur est null et qu'on est hors ligne, indiquer qu'une connexion en ligne est nécessaire
+          if (!isOnline) {
+            throw Exception('Aucune donnée locale trouvée. Une connexion en ligne est requise pour la première connexion.');
+          } else {
+            throw Exception('Identifiants incorrects');
+          }
         }
       } catch (e) {
         print('Erreur générale connexion: $e');

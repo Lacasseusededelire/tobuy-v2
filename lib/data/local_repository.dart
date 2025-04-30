@@ -19,7 +19,7 @@ class LocalRepository {
     final path = join(await getDatabasesPath(), 'tobuy.db');
     return openDatabase(
       path,
-      version: 4, // Incrémenter la version pour ajouter la nouvelle table
+      version: 4,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE users (
@@ -79,7 +79,14 @@ class LocalRepository {
     );
   }
 
-  // Ajouter un nom à l'historique
+  // Méthode pour supprimer et recréer la base de données
+  Future<void> deleteAndRecreateDatabase() async {
+    final path = join(await getDatabasesPath(), 'tobuy.db');
+    await deleteDatabase(path); // Supprime la base de données
+    _database = null; // Réinitialise la référence pour forcer une recréation
+    await database; // Recrée la base de données
+  }
+
   Future<void> addItemNameToHistory(String name) async {
     final db = await database;
     await db.insert(
@@ -89,7 +96,6 @@ class LocalRepository {
     );
   }
 
-  // Récupérer les suggestions d'autocomplétion
   Future<List<String>> getItemNameSuggestions(String query) async {
     final db = await database;
     final maps = await db.query(
@@ -132,6 +138,18 @@ class LocalRepository {
 
   Future<ShoppingList> createList(String userId, String name) async {
     final db = await database;
+    // Vérifier si une liste avec le même nom et userId existe déjà
+    final existingLists = await db.query(
+      'shopping_lists',
+      where: 'name = ? AND user_id = ?',
+      whereArgs: [name, userId],
+    );
+    if (existingLists.isNotEmpty) {
+      final existingList = ShoppingList.fromMap(existingLists.first);
+      final items = await getItems(existingList.id);
+      return existingList..items = items;
+    }
+
     final list = ShoppingList(
       id: UuidHelper.generate(),
       name: name,
@@ -141,6 +159,28 @@ class LocalRepository {
     );
     await db.insert('shopping_lists', list.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
     return list;
+  }
+
+  Future<void> updateListId(String oldId, String newId) async {
+    final db = await database;
+    await db.update(
+      'shopping_lists',
+      {'id': newId},
+      where: 'id = ?',
+      whereArgs: [oldId],
+    );
+    await db.update(
+      'shopping_items',
+      {'list_id': newId},
+      where: 'list_id = ?',
+      whereArgs: [oldId],
+    );
+    await db.update(
+      'invitations',
+      {'list_id': newId},
+      where: 'list_id = ?',
+      whereArgs: [oldId],
+    );
   }
 
   Future<void> deleteList(String listId) async {
@@ -211,6 +251,17 @@ class LocalRepository {
   Future<void> createInvitation(
       String listId, String listName, String senderId, String senderEmail, String receiverEmail) async {
     final db = await database;
+    // Vérifier si une invitation avec le même listId, senderId et receiverEmail existe déjà
+    final existingInvitations = await db.query(
+      'invitations',
+      where: 'list_id = ? AND sender_id = ? AND receiver_email = ?',
+      whereArgs: [listId, senderId, receiverEmail],
+    );
+    if (existingInvitations.isNotEmpty) {
+      print('Invitation déjà existante localement pour $receiverEmail dans la liste $listId');
+      return;
+    }
+
     final invitation = Invitation(
       id: UuidHelper.generate(),
       listId: listId,
@@ -275,5 +326,4 @@ class LocalRepository {
     );
     return maps.map((map) => Invitation.fromMap(map)).toList();
   }
-  
 }
